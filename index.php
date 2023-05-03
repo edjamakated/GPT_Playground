@@ -69,75 +69,83 @@
         </div>
     </section>
     <script>
-        $(document).ready(function() {
-            async function sendInstruction(instructionData) {
-                const response = await fetch('api_async.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(instructionData)
+        (function() {
+            $(document).ready(function() {
+                async function sendInstruction(instructionData) {
+                    try {
+                        const response = await fetch('api_async.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(instructionData),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const eventSource = new EventSource(response.url);
+
+                        eventSource.onmessage = function(event) {
+                            const data = JSON.parse(event.data);
+
+                            $('#chat-window').append('<p><strong>User:</strong> ' + data.userInstruction + '</p>');
+                            $('#chat-window').append('<p><strong>Assistant:</strong> ' + data.assistantResponse + '</p>');
+                            $('#chat-window').scrollTop($('#chat-window')[0].scrollHeight);
+                        };
+
+                        eventSource.onerror = function(event) {
+                            eventSource.close();
+                        };
+                    } catch (error) {
+                        console.error('Error occurred during fetch: ', error);
+                    }
+                }
+
+                $("#chat-form").on("submit", async function(e) {
+                    e.preventDefault();
+
+                    const formData = $(this).serializeArray();
+                    const groupedData = {
+                        user_instructions: [],
+                        assistant_instructions: [],
+                        system_instructions: []
+                    };
+
+                    formData.forEach(({
+                        name,
+                        value
+                    }) => {
+                        if (name === "user_instructions[]") groupedData.user_instructions.push(value);
+                        if (name === "assistant_instructions[]") groupedData.assistant_instructions.push(value);
+                        if (name === "system_instructions[]") groupedData.system_instructions.push(value);
+                    });
+
+                    const model = $("#model").val();
+                    const temperature = $("#temperature").val();
+                    const max_tokens = $("#max_tokens").val();
+                    const top_p = $("#top_p").val();
+                    const frequency_penalty = $("#frequency_penalty").val();
+                    const presence_penalty = $("#presence_penalty").val();
+
+                    await sendInstruction({
+                        ...groupedData,
+                        model,
+                        temperature,
+                        max_tokens,
+                        top_p,
+                        frequency_penalty,
+                        presence_penalty
+                    });
+
+                    $("input[name='user_instructions[]']").val('');
+                    $("input[name='assistant_instructions[]']").val('');
+                    $("input[name='system_instructions[]']").val('');
                 });
 
-                const eventSource = new EventSource(response.url);
-
-                eventSource.onmessage = function(event) {
-                    const data = JSON.parse(event.data);
-
-                    $("#chat-window").append('<p><strong>User:</strong> ' + data.userInstruction + '</p>');
-                    $("#chat-window").append('<p><strong>Assistant:</strong> ' + data.assistantResponse + '</p>');
-                    $("#chat-window").scrollTop($("#chat-window")[0].scrollHeight);
-                };
-
-                eventSource.onerror = function(event) {
-                    eventSource.close();
-                };
-
-            }
-
-            $("#chat-form").on("submit", async function(e) {
-                e.preventDefault();
-
-                const formData = $(this).serializeArray();
-                const groupedData = {
-                    user_instructions: [],
-                    assistant_instructions: [],
-                    system_instructions: []
-                };
-
-                formData.forEach(({
-                    name,
-                    value
-                }) => {
-                    if (name === "user_instructions[]") groupedData.user_instructions.push(value);
-                    if (name === "assistant_instructions[]") groupedData.assistant_instructions.push(value);
-                    if (name === "system_instructions[]") groupedData.system_instructions.push(value);
-                });
-
-                const model = $("#model").val();
-                const temperature = $("#temperature").val();
-                const max_tokens = $("#max_tokens").val();
-                const top_p = $("#top_p").val();
-                const frequency_penalty = $("#frequency_penalty").val();
-                const presence_penalty = $("#presence_penalty").val();
-
-                await sendInstruction({
-                    ...groupedData,
-                    model,
-                    temperature,
-                    max_tokens,
-                    top_p,
-                    frequency_penalty,
-                    presence_penalty
-                });
-
-                $("input[name='user_instructions[]']").val('');
-                $("input[name='assistant_instructions[]']").val('');
-                $("input[name='system_instructions[]']").val('');
-            });
-
-            $("#add-instruction-set").on("click", function() {
-                const newInstructionSet = `
+                $("#add-instruction-set").on("click", function() {
+                    const newInstructionSet = `
     <div class="instruction-set">
         <div class="field">
             <label class="label">User Instructions</label>
@@ -158,9 +166,10 @@
             </div>
         </div>
     </div>`;
-                $("#chat-form .instruction-set:last").after(newInstructionSet);
+                    $("#chat-form .instruction-set:last").after(newInstructionSet);
+                });
             });
-        });
+        })();
     </script>
 </body>
 
